@@ -1,51 +1,68 @@
 # Consultas MongoDB - Apartado 4
 
+## ⚠️ NOTA: Este archivo está desactualizado
+
+**Por favor, usa el archivo actualizado:** `consultas_mongodb_nuevo_modelo.md`
+
+El modelo de datos ha sido actualizado de un modelo dimensional a un modelo relacional.
+
+---
+
 ## Base de Datos: `medical_imaging_dw`
 
-## 📊 Esquema del Modelo Dimensional
+## 📊 Esquema del Modelo Relacional (Actualizado)
 
 ```
-     dim_patient          dim_protocol         dim_image
-   ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-   │ patient_sk PK│     │ protocol_sk PK│    │ image_sk PK  │
-   │ PatientID    │     │ StudyDesc    │     │ PixelSpacing │
-   │ PatientAge   │     │ Modality     │     │ KVP          │
-   │ PatientSex   │     │ SliceThick   │     │ Manufacturer │
-   └──────────────┘     │ ContrastAgent│     └──────────────┘
-         ▲               └──────────────┘            ▲
-         │                      ▲                    │
-         │                      │                    │
-         │    dim_station       │      dim_time     │
-         │  ┌──────────────┐    │    ┌──────────────┐│
-         │  │ station_sk PK│    │    │ time_sk PK   ││
-         │  │ StationName  │    │    │ StudyDate    ││
-         │  │ Manufacturer │    │    │ StudyTime    ││
-         │  └──────────────┘    │    │ Year         ││
-         │         ▲            │    │ Month        ││
-         │         │            │    │ Day          ││
-         │         │            │    └──────────────┘│
-         │         │            │           ▲        │
-         └─────────┴────────────┴───────────┴────────┘
-                         fact_table
-                   ┌─────────────────────────┐
-                   │ patient_sk FK           │
-                   │ protocol_sk FK          │
-                   │ image_sk FK             │
-                   │ station_sk FK           │
-                   │ time_sk FK              │
-                   │ original_dicom_path     │
-                   │ jpeg_path               │
-                   │ jpeg_filename           │
-                   │ processed_date          │
-                   └─────────────────────────┘
+┌──────────┐     ┌──────────┐     ┌──────────┐
+│ PATIENT  │     │ STATION  │     │ PROTOCOL │
+│────────  │     │──────────│     │──────────│
+│patient_id│◄───┐│station_id│◄───┐│protocol_ │
+│sex       │    ││manufact. │    ││id        │
+│age       │    ││model     │    ││body_part │
+└──────────┘    │└──────────┘    ││contrast_ │
+                │                ││agent     │
+┌──────────┐    │                ││patient_  │
+│   DATE   │    │                ││position  │
+│──────────│    │                │└──────────┘
+│date_id   │◄───┤                │
+│year      │    │                │
+│month     │    │  ┌──────────┐  │
+└──────────┘    │  │  STUDY   │  │
+                └──┤(Fact Tbl)│──┘
+┌──────────┐       │──────────│
+│  IMAGE   │       │patient_id│
+│──────────│◄──────│station_id│
+│image_id  │       │protocol_ │
+│rows      │       │id        │
+│columns   │       │image_id  │
+│pixel_sp_x│       │study_date│
+│pixel_sp_y│       │exposure_t│
+│slice_thk │       │file_path │
+│photo_int │       └──────────┘
+└──────────┘
 ```
+
+---
+
+## 🔄 Cambios Principales
+
+| Antes | Ahora |
+|-------|-------|
+| `dim_patient` | `PATIENT` |
+| `dim_protocol` | `PROTOCOL` |
+| `dim_image` | `IMAGE` |
+| `dim_station` | `STATION` |
+| `dim_time` | `DATE` |
+| `fact_table` | `STUDY` |
+
+---
 
 ### 1️⃣ Consultas Simples (Filter en Documents)
 
 #### Pacientes masculinos
-Colección: `dim_patient`
+Colección: `PATIENT`
 ```json
-{ "PatientSex": "M" }
+{ "sex": "M" }
 ```
 
 #### Pacientes mayores de 60 años
@@ -591,13 +608,28 @@ Colección: `dim_station`
 
 ```
 medical_imaging_dw/
-├── dim_patient (PatientID, Age, Sex)
-├── dim_protocol (Modality, StudyDescription, ContrastAgent, SliceThickness)
-├── dim_image (PixelSpacing, KVP, Manufacturer)
-├── dim_station (StationName, Manufacturer)
-├── dim_time (StudyDate, StudyTime, Year, Month, DayOfWeek)
-└── fact_table (FKs: patient_sk, protocol_sk, image_sk, station_sk, time_sk)
+├── PATIENT (sex, age)
+├── STATION (manufacturer, model)
+├── PROTOCOL (body_part, contrast_agent, patient_position)
+├── DATE (year, month)
+├── IMAGE (rows, columns, pixel_spacing_x, pixel_spacing_y, slice_thickness, photometric_interp)
+└── STUDY (FKs: patient_id, station_id, protocol_id, image_id, study_date + exposure_time, file_path)
 ```
+
+---
+
+## ⚠️ AVISO IMPORTANTE
+
+**Este archivo contiene información desactualizada.**
+
+Para consultas actualizadas con el nuevo modelo relacional, consulta:
+📄 **`consultas_mongodb_nuevo_modelo.md`**
+
+El nuevo modelo incluye:
+- ✅ 7 campos nuevos extraídos de DICOM
+- ✅ Estructura relacional mejorada
+- ✅ Consultas optimizadas
+- ✅ Ejemplos completos de JOIN entre todas las entidades
 
 ---
 
@@ -606,7 +638,8 @@ medical_imaging_dw/
 - [MongoDB Aggregation Docs](https://docs.mongodb.com/manual/aggregation/)
 - [Aggregation Pipeline Stages](https://docs.mongodb.com/manual/reference/operator/aggregation-pipeline/)
 - [MongoDB Compass Tutorial](https://docs.mongodb.com/compass/current/)
+- **Consultas actualizadas**: `consultas_mongodb_nuevo_modelo.md` ⭐
 
 ---
 
-**¡Listo para explorar los datos!** 🚀
+**¡Usa el archivo `consultas_mongodb_nuevo_modelo.md` para consultas actualizadas!** 🚀

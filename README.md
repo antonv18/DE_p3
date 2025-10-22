@@ -84,17 +84,20 @@ El pipeline implementa las siguientes fases:
 
 ### 2. **Transformación (Transform)**
 - **Normalización de edad**: Convierte formato DICOM ('061Y') a entero (61)
-- **Normalización de PixelSpacing**: Redondea a bins predefinidos (0.6, 0.65, 0.7, 0.75, 0.8)
+- **Normalización de PixelSpacing**: Redondea a bins predefinidos (0.6, 0.65, 0.7, 0.75, 0.8), separado en X e Y
 - **Normalización de ContrastAgent**: Estandariza valores vacíos/inválidos
 - **Conversión de imágenes**: DICOM → JPEG (256x256, normalizado 0-255)
 - **Generación de surrogate keys**: Hashes MD5 para identificadores únicos
+- **Extracción de campos adicionales**: BodyPartExamined, PatientPosition, ExposureTime, Rows, Columns, PhotometricInterpretation, ManufacturerModelName
 
 ### 3. **Carga (Load)**
-- Modelo dimensional en MongoDB (database: `medical_imaging_dw`)
-  - **DimPatient**: Dimensión de pacientes
-  - **DimStudy**: Dimensión de estudios
-  - **DimImage**: Dimensión de imágenes (características técnicas)
-  - **FactScan**: Tabla de hechos (relaciona dimensiones)
+- Modelo relacional en MongoDB (database: `medical_imaging_dw`)
+  - **PATIENT**: Datos demográficos de pacientes
+  - **STATION**: Información de equipos/estaciones
+  - **PROTOCOL**: Protocolos de adquisición
+  - **DATE**: Dimensión temporal
+  - **IMAGE**: Características técnicas de imagen
+  - **STUDY**: Tabla de hechos (relaciona todas las entidades)
 
 ### 4. **Visualización**
 - Grid 4x4 con las primeras 16 imágenes DICOM
@@ -122,11 +125,12 @@ Convierte archivo DICOM a JPEG (normalizado y redimensionado).
 
 ## Acceso a los Datos
 
-### Opción 1: MongoDB Compass (GUI)
+### Opción 1: MongoDB Compass (GUI) ⭐ Recomendado
 1. Abrir MongoDB Compass
 2. Conectar a: `mongodb://localhost:27017`
 3. Explorar database: `medical_imaging_dw`
-4. Ver colecciones: DimPatient, DimStudy, DimImage, FactScan
+4. Ver colecciones: **PATIENT**, **STATION**, **PROTOCOL**, **DATE**, **IMAGE**, **STUDY**
+5. Usar pipelines de agregación (ver `consultas_mongodb_nuevo_modelo.md`)
 
 ### Opción 2: Línea de comandos
 ```bash
@@ -135,63 +139,154 @@ mongosh
 use medical_imaging_dw
 
 # Ver pacientes
-db.DimPatient.find().pretty()
+db.PATIENT.find().pretty()
 
-# Contar registros
-db.FactScan.countDocuments()
+# Contar registros en todas las colecciones
+db.PATIENT.countDocuments()
+db.STATION.countDocuments()
+db.PROTOCOL.countDocuments()
+db.DATE.countDocuments()
+db.IMAGE.countDocuments()
+db.STUDY.countDocuments()
 
-# Buscar pacientes por sexo y edad
-db.DimPatient.find({ PatientSex: "M", PatientAge: { $gte: 60 } })
+# JOIN: Estudios con información del paciente
+db.STUDY.aggregate([
+  {
+    $lookup: {
+      from: "PATIENT",
+      localField: "patient_id",
+      foreignField: "patient_id",
+      as: "patient"
+    }
+  },
+  { $unwind: "$patient" },
+  { $limit: 5 }
+])
 ```
 
-## Estructura de Datos (Modelo Dimensional)
+## Estructura de Datos (Modelo Relacional)
 
-### DimPatient
+### Diagrama del Modelo
+```
+┌──────────┐     ┌──────────┐     ┌──────────┐
+│ PATIENT  │     │ STATION  │     │ PROTOCOL │
+│────────  │     │──────────│     │──────────│
+│patient_id│◄───┐│station_id│◄───┐│protocol_ │
+│sex       │    ││manufact. │    ││id        │
+│age       │    ││model     │    ││body_part │
+└──────────┘    │└──────────┘    ││contrast_ │
+                │                ││agent     │
+┌──────────┐    │                ││patient_  │
+│   DATE   │    │                ││position  │
+│──────────│    │                │└──────────┘
+│date_id   │◄───┤                │
+│year      │    │                │
+│month     │    │  ┌──────────┐  │
+└──────────┘    │  │  STUDY   │  │
+                └──┤(Fact Tbl)│──┘
+┌──────────┐       │──────────│
+│  IMAGE   │       │patient_id│
+│──────────│◄──────│station_id│
+│image_id  │       │protocol_ │
+│rows      │       │id        │
+│columns   │       │image_id  │
+│pixel_sp_x│       │study_date│
+│pixel_sp_y│       │exposure_t│
+│slice_thk │       │file_path │
+│photo_int │       └──────────┘
+└──────────┘
+```
+
+### PATIENT (Entidad demográfica)
 ```json
 {
-  "PatientSK": "hash_md5_unico",
-  "PatientID": "12345",
-  "PatientAge": 61,
-  "PatientSex": "M"
+  "_id": ObjectId("..."),
+  "patient_id": "a1b2c3d4e5f6...",  // PK (MD5 hash)
+  "sex": "M",                       // (0010, 0040)
+  "age": 65                         // (0010, 1010)
 }
 ```
 
-### DimStudy
+### STATION (Equipos de adquisición)
 ```json
 {
-  "StudySK": "hash_md5_unico",
-  "StudyDate": "20230115",
-  "StudyTime": "085723",
-  "StudyDescription": "CT CHEST",
-  "Modality": "CT"
+  "_id": ObjectId("..."),
+  "station_id": "f6e5d4c3b2a1...",  // PK (MD5 hash)
+  "manufacturer": "SIEMENS",        // (0008, 0070)
+  "model": "SOMATOM Definition AS"  // (0008, 1090)
 }
 ```
 
-### DimImage
+### PROTOCOL (Protocolos de estudio)
 ```json
 {
-  "ImageSK": "hash_md5_unico",
-  "SliceThickness": 5.0,
-  "PixelSpacing": 0.7,
-  "ContrastAgent": "No contrast agent",
-  "KVP": 120.0,
-  "Manufacturer": "SIEMENS",
-  "StationName": "CT01"
+  "_id": ObjectId("..."),
+  "protocol_id": "1a2b3c4d5e6f...",      // PK (MD5 hash)
+  "body_part": "CHEST",                  // (0018, 0015)
+  "contrast_agent": "Iodine contrast",   // (0018, 0010)
+  "patient_position": "HFS"              // (0018, 5100)
 }
 ```
 
-### FactScan
+### DATE (Dimensión temporal)
 ```json
 {
-  "PatientSK": "ref_to_patient",
-  "StudySK": "ref_to_study",
-  "ImageSK": "ref_to_image",
-  "OriginalDicomPath": "path/to/file.dcm",
-  "JpegPath": "path/to/file.jpg",
-  "JpegFilename": "file.jpg",
-  "ProcessedDate": "2025-10-22T10:30:00"
+  "_id": ObjectId("..."),
+  "date_id": "9z8y7x6w5v...",  // PK (MD5 hash)
+  "year": "2018",
+  "month": "03"
 }
 ```
+
+### IMAGE (Características técnicas)
+```json
+{
+  "_id": ObjectId("..."),
+  "image_id": "5t4r3e2w1q...",          // PK (MD5 hash)
+  "rows": 512,                          // (0028, 0010)
+  "columns": 512,                       // (0028, 0011)
+  "pixel_spacing_x": 0.75,              // (0028, 0030)[1]
+  "pixel_spacing_y": 0.75,              // (0028, 0030)[0]
+  "slice_thickness": 5.0,               // (0018, 0050)
+  "photometric_interp": "MONOCHROME2"   // (0028, 0004)
+}
+```
+
+### STUDY (Tabla de hechos - Fact Table)
+```json
+{
+  "_id": ObjectId("..."),
+  "patient_id": "a1b2c3d4e5f6...",      // FK → PATIENT
+  "station_id": "f6e5d4c3b2a1...",      // FK → STATION
+  "protocol_id": "1a2b3c4d5e6f...",     // FK → PROTOCOL
+  "image_id": "5t4r3e2w1q...",          // FK → IMAGE
+  "study_date": "9z8y7x6w5v...",        // FK → DATE
+  "exposure_time": 120.5,               // (0018, 1150)
+  "file_path": "C:\\...\\ID_0042.dcm",
+  "jpeg_path": "C:\\...\\ID_0042.jpg",
+  "jpeg_filename": "ID_0042.jpg",
+  "processed_date": "2025-10-22T14:30:00"
+}
+```
+
+### Etiquetas DICOM Extraídas
+
+| Entidad | Campo | Etiqueta DICOM | Descripción |
+|---------|-------|----------------|-------------|
+| PATIENT | sex | (0010, 0040) | Sexo del paciente |
+| PATIENT | age | (0010, 1010) | Edad del paciente |
+| STATION | manufacturer | (0008, 0070) | Fabricante del equipo |
+| STATION | model | (0008, 1090) | Modelo del equipo |
+| PROTOCOL | body_part | (0018, 0015) | Parte del cuerpo examinada |
+| PROTOCOL | contrast_agent | (0018, 0010) | Agente de contraste |
+| PROTOCOL | patient_position | (0018, 5100) | Posición del paciente |
+| DATE | year, month | (0008, 0020) | Fecha del estudio |
+| IMAGE | rows | (0028, 0010) | Número de filas |
+| IMAGE | columns | (0028, 0011) | Número de columnas |
+| IMAGE | pixel_spacing_x/y | (0028, 0030) | Espaciado de píxeles |
+| IMAGE | slice_thickness | (0018, 0050) | Grosor del corte |
+| IMAGE | photometric_interp | (0028, 0004) | Interpretación fotométrica |
+| STUDY | exposure_time | (0018, 1150) | Tiempo de exposición |
 
 ## Troubleshooting
 
@@ -246,6 +341,44 @@ OUTPUT_DIR = DATA_DIR / "output"           # Resultados
 - Contraste aplicado (50 con, 50 sin)
 - Formato DICOM + TIFF
 - Metadata en CSV
+
+## Consultas y Análisis
+
+Ver ejemplos completos de consultas MongoDB en:
+- **`consultas_mongodb_nuevo_modelo.md`** → Guía completa de queries
+- **`MODELO_RELACIONAL_RESUMEN.md`** → Documentación técnica del modelo
+- **`RESUMEN_CAMBIOS.md`** → Cambios vs. versión anterior
+
+### Ejemplos rápidos:
+
+**Top fabricantes de equipos:**
+```javascript
+db.STUDY.aggregate([
+  { $lookup: { from: "STATION", localField: "station_id", foreignField: "station_id", as: "station" } },
+  { $unwind: "$station" },
+  { $group: { _id: "$station.manufacturer", count: { $sum: 1 } } },
+  { $sort: { count: -1 } }
+])
+```
+
+**Distribución por edad:**
+```javascript
+db.STUDY.aggregate([
+  { $lookup: { from: "PATIENT", localField: "patient_id", foreignField: "patient_id", as: "patient" } },
+  { $unwind: "$patient" },
+  { $bucket: { groupBy: "$patient.age", boundaries: [40, 50, 60, 70, 80, 90], default: "90+", output: { count: { $sum: 1 } } } }
+])
+```
+
+**Análisis de partes del cuerpo:**
+```javascript
+db.STUDY.aggregate([
+  { $lookup: { from: "PROTOCOL", localField: "protocol_id", foreignField: "protocol_id", as: "protocol" } },
+  { $unwind: "$protocol" },
+  { $group: { _id: "$protocol.body_part", count: { $sum: 1 } } },
+  { $sort: { count: -1 } }
+])
+```
 
 ## Desarrollo
 
