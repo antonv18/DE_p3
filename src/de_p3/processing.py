@@ -14,181 +14,14 @@ import numpy as np
 from PIL import Image
 
 # Importar configuración
-from .config import RAW_DATA_DIR
-
-
-# ============================================
-# UTILITY FUNCTIONS
-# ============================================
-
-def surrogate_key(values):
-    """
-    Generate a unique hash string (surrogate key) from a dictionary.
-    Uses MD5 algorithm. Same combination always produces the same key.
-    
-    Args:
-        values (dict): Dictionary with values to hash
-        
-    Returns:
-        str: MD5 hash string
-    """
-    # Sort keys to ensure consistent ordering
-    sorted_items = sorted(values.items())
-    # Create string representation
-    values_str = str(sorted_items).encode('utf-8')
-    # Generate MD5 hash
-    return hashlib.md5(values_str).hexdigest()
-
-
-def get_or_create(collection, values, pk_name):
-    """
-    Check if a record exists in a MongoDB collection.
-    If not, insert a new one using surrogate key as primary key.
-    
-    Args:
-        collection: MongoDB collection object
-        values (dict): Values to search/insert
-        pk_name (str): Name of the primary key field
-        
-    Returns:
-        str: The surrogate key
-    """
-    # Generate surrogate key
-    sk = surrogate_key(values)
-    
-    # Check if record exists
-    existing = collection.find_one({pk_name: sk})
-    
-    if existing is None:
-        # Insert new record
-        record = {pk_name: sk, **values}
-        collection.insert_one(record)
-    
-    return sk
-
-
-def format_age(age_str):
-    """
-    Transform DICOM age string (e.g., '061Y') to integer (e.g., 61).
-    Handles missing or malformed data safely.
-    
-    Args:
-        age_str (str): DICOM age string
-        
-    Returns:
-        int or None: Age as integer, or None if invalid
-    """
-    if not age_str or not isinstance(age_str, str):
-        return None
-    
-    try:
-        # Remove 'Y' suffix and convert to int
-        age_str = age_str.strip()
-        if age_str.endswith('Y'):
-            age_str = age_str[:-1]
-        return int(age_str)
-    except (ValueError, AttributeError):
-        return None
-
-
-def dicom_to_jpeg(input_path, output_dir, size=(256, 256)):
-    """
-    Convert DICOM file to JPEG format.
-    - Normalize pixel values to 0-255
-    - Resize to specified size (default 256x256)
-    - Save as grayscale JPEG
-    
-    Args:
-        input_path (str or Path): Path to input DICOM file
-        output_dir (str or Path): Directory to save JPEG
-        size (tuple): Target size (width, height)
-        
-    Returns:
-        str: Path to saved JPEG file
-    """
-    # Ensure output directory exists
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Read DICOM file
-    dcm = pydicom.dcmread(input_path)
-    pixel_array = dcm.pixel_array
-    
-    # Normalize pixel values to 0-255
-    pixel_array = pixel_array.astype(float)
-    pixel_min = pixel_array.min()
-    pixel_max = pixel_array.max()
-    
-    if pixel_max > pixel_min:
-        pixel_array = ((pixel_array - pixel_min) / (pixel_max - pixel_min)) * 255.0
-    else:
-        pixel_array = np.zeros_like(pixel_array)
-    
-    pixel_array = pixel_array.astype(np.uint8)
-    
-    # Convert to PIL Image and resize
-    image = Image.fromarray(pixel_array, mode='L')  # 'L' for grayscale
-    image = image.resize(size, Image.LANCZOS)
-    
-    # Generate output filename
-    input_path = Path(input_path)
-    output_filename = input_path.stem + '.jpg'
-    output_path = output_dir / output_filename
-    
-    # Save as JPEG
-    image.save(output_path, 'JPEG')
-    
-    return str(output_path)
-
-
-def normalize_pixel_spacing(raw_value):
-    """
-    Round pixel spacing value to nearest bin from predefined set.
-    Bins: [0.6, 0.65, 0.7, 0.75, 0.8]
-    
-    Args:
-        raw_value (float or str): Raw pixel spacing value
-        
-    Returns:
-        float or None: Normalized value, or None if invalid
-    """
-    bins = [0.6, 0.65, 0.7, 0.75, 0.8]
-    
-    try:
-        # Convert to float if string
-        if isinstance(raw_value, str):
-            raw_value = float(raw_value)
-        
-        # Find nearest bin
-        nearest = min(bins, key=lambda x: abs(x - raw_value))
-        return nearest
-    except (ValueError, TypeError):
-        return None
-
-
-def normalize_contrast_agent(val):
-    """
-    Standardize DICOM contrast agent metadata.
-    - Replace missing, empty, or single-character values with "No contrast agent"
-    - Otherwise return cleaned string
-    
-    Args:
-        val (str): Raw contrast agent value
-        
-    Returns:
-        str: Normalized contrast agent string
-    """
-    # Check if missing, empty, or single character
-    if not val or not isinstance(val, str) or len(val.strip()) <= 1:
-        return "No contrast agent"
-    
-    # Return cleaned string
-    return val.strip()
-
-
-# ============================================
-# MAIN PROCESSING
-# ============================================
+from de_p3.config import RAW_DATA_DIR as DATA_PATH
+from de_p3.utils import (
+    format_age,
+    normalize_contrast_agent,
+    get_or_create,
+    normalize_pixel_spacing,
+    dicom_to_jpeg
+    )
 
 def main():
     """
@@ -207,9 +40,9 @@ def main():
     # 1. EXTRACT: Load DICOM files
     # ============================================
     print("\n[1/5] Loading DICOM files...")
-    DATA_PATH = str(RAW_DATA_DIR)
     DICOM_FILES_PATH = os.path.join(DATA_PATH, '*.dcm')
     dicom_files = glob(DICOM_FILES_PATH)
+    print(f"Searching in: {DICOM_FILES_PATH}")
     
     if not dicom_files:
         print(f"ERROR: No DICOM files found in {DATA_PATH}")
@@ -225,6 +58,7 @@ def main():
     # 2. VISUALIZE: Show 4x4 grid of first 16 images
     # ============================================
     print("\n[2/5] Creating visualization grid (4x4)...")
+    # Transform first 16 DICOM rows from DataFrame to list of dicts
     img_data = list(dicom_data[:16].T.to_dict().values())
     f, ax = plt.subplots(4, 4, figsize=(16, 20))
     
@@ -235,7 +69,7 @@ def main():
         ax[i//4, i%4].set_title(f"Image {i+1}", fontsize=10)
     
     plt.tight_layout()
-    output_image = Path(DATA_PATH).parent / 'dicom_grid_output.png'
+    output_image = DATA_PATH.parent / 'dicom_grid_output.png'
     plt.savefig(output_image, dpi=100, bbox_inches='tight')
     print(f"✓ Grid saved to: {output_image}")
     plt.close()
@@ -274,7 +108,7 @@ def main():
         print("✓ Successfully connected to MongoDB")
     except Exception as e:
         print(f"ERROR: Could not connect to MongoDB: {e}")
-        print("Make sure MongoDB is running: mongod")
+        print('Make sure MongoDB is running on "localhost:27017": mongod')
         return
     
     # Create/access database
@@ -297,7 +131,7 @@ def main():
     print("Creating JPEG directory...")
     
     # Create output directory for JPEG images
-    jpeg_output_dir = Path(DATA_PATH).parent / 'output' / 'jpeg_images'
+    jpeg_output_dir = DATA_PATH.parent / 'output' / 'jpeg_images'
     jpeg_output_dir.mkdir(parents=True, exist_ok=True)
     
     processed_count = 0

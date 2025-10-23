@@ -14,3 +14,13 @@ dependencies = [
     "scikit-image>=0.25.2",
     "seaborn>=0.13.2",
 ]
+[tool.hatch.build.targets.wheel]
+packages = ["src/de_p3"]
+
+[project.scripts]
+run-pipeline-mongo = "de_p3:main"
+
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

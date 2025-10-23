@@ -19,10 +19,11 @@ p3/
 │   └── output/          # Resultados generados
 │       └── jpeg_images/ # Imágenes JPEG convertidas
 ├── src/                  # Código fuente
-│   ├── __init__.py      # Inicialización del paquete
-│   ├── processing.py    # ⭐ Pipeline ETL completo
-│   ├── config.py        # Configuración (rutas, parámetros)
-│   └── utils.py         # Utilidades (logging, validaciones)
+|   └── de_p3            # Paquete
+│       ├── __init__.py      # Inicialización del paquete
+│       ├── processing.py    # ⭐ Pipeline ETL completo
+│       ├── config.py        # Configuración (rutas, parámetros)
+│       └── utils.py         # Utilidades (logging, validaciones)
 └── test_functions.py    # Tests de funciones de utilidad
 ```
 
@@ -60,12 +61,12 @@ uv sync
 
 **Opción 1 (Recomendada):**
 ```bash
-uv run main.py
+uv run run-pipeline-mongo
 ```
 
 **Opción 2 (Módulo directo):**
 ```bash
-uv run python -m src.processing
+uv run python -m de_p3.processing
 ```
 
 ### Probar funciones de utilidad:

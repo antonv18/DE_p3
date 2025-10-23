@@ -1,7 +1,7 @@
 """
 Test de las funciones de utilidad
 """
-from src.processing import (
+from de_p3.processing import (
     surrogate_key,
     format_age,
     normalize_pixel_spacing,

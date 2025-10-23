@@ -1,5 +1,6 @@
 """Main entry point for P3 project"""
-from src.processing import main as processing_main
+from de_p3.processing import main as processing_main
+
 
 def main():
     """
