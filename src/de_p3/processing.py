@@ -47,7 +47,7 @@ def main():
         print(f"ERROR: No DICOM files found in {DATA_PATH}")
         return
     
-    print(f"✓ Found {len(dicom_files)} DICOM files")
+    print(f"Found {len(dicom_files)} DICOM files")
     
     # Create DataFrame with file paths
     dicom_data = pd.DataFrame([{'path': filepath} for filepath in dicom_files])
@@ -70,11 +70,12 @@ def main():
     plt.tight_layout()
     output_image = DATA_PATH.parent / 'dicom_grid_output.png'
     plt.savefig(output_image, dpi=100, bbox_inches='tight')
-    print(f"✓ Grid saved to: {output_image}")
+    print(f"Grid saved to: {output_image}")
     plt.close()
     
     # Show metadata of first file
     print("\n[3/5] Inspecting DICOM metadata...")
+    # Show all DICOM metadata of one file
     dicom_file_path = list(dicom_data[:1].T.to_dict().values())[0]['path']
     dicom_file_metadata = pydicom.dcmread(dicom_file_path)
     print(f"\nSample metadata from: {Path(dicom_file_path).name}")
@@ -82,18 +83,13 @@ def main():
     
     # Print relevant metadata fields
     metadata_fields = [
-        'PatientID', 'PatientAge', 'PatientSex',
-        'StudyDate', 'StudyDescription', 'Modality',
-        'SliceThickness', 'PixelSpacing', 'ContrastBolusAgent',
-        'KVP', 'Manufacturer', 'StationName'
+        'PatientID', 'PatientName', 'PatientAge',
+        'PatientSex', 'Modality', 'Manufacturer'
     ]
-    
     for field in metadata_fields:
         if hasattr(dicom_file_metadata, field):
             value = getattr(dicom_file_metadata, field)
             print(f"  {field}: {value}")
-        else:
-            print(f"  {field}: [Not available]")
     
     # ============================================
     # 3. MONGODB CONNECTION
@@ -104,24 +100,23 @@ def main():
     # Send a ping to confirm a successful connection
     try:
         client.admin.command('ping')
-        print("✓ Successfully connected to MongoDB")
+        print("Successfully connected to MongoDB")
     except Exception as e:
         print(f"ERROR: Could not connect to MongoDB: {e}")
-        print('Make sure MongoDB is running on "localhost:27017": mongod')
         return
     
     # Create/access database
     db = client["medical_imaging_dw"]
     
-    # Clear existing collections (for fresh start)
-    print("\nClearing existing collections...")
+    # Clear existing tables
+    print("\nClearing existing tables...")
     db["patient_dim"].delete_many({})
     db["station_dim"].delete_many({})
     db["protocol_dim"].delete_many({})
     db["date_dim"].delete_many({})
     db["image_dim"].delete_many({})
     db["fact_table"].delete_many({})
-    print("✓ Collections cleared")
+    print("Tables cleared")
     
     # ============================================
     # 4. ETL PIPELINE: Process all DICOM files
@@ -147,30 +142,30 @@ def main():
             
             # patient_dim entity (0010, xxxx)
             patient_id = str(getattr(dcm, 'PatientID', f'UNKNOWN_{idx}'))
-            patient_age_str = getattr(dcm, 'PatientAge', None)  # (0010, 1010)
+            patient_age_str = getattr(dcm, 'PatientAge', None)  # (0010,1010)
             patient_age = format_age(patient_age_str)
-            patient_sex = str(getattr(dcm, 'PatientSex', 'U'))  # (0010, 0040) U = Unknown
+            patient_sex = str(getattr(dcm, 'PatientSex', 'U'))  # (0010,0040)
             
             # station_dim entity (0008, xxxx)
-            manufacturer = str(getattr(dcm, 'Manufacturer', ''))  # (0008, 0070)
-            model = str(getattr(dcm, 'ManufacturerModelName', ''))  # (0008, 1090)
-            
+            manufacturer = str(getattr(dcm, 'Manufacturer', ''))  # (0008,0070)
+            model = str(getattr(dcm, 'ManufacturerModelName', ''))  # (0008,1090)
+
             # protocol_dim entity (0018, xxxx)
-            body_part = str(getattr(dcm, 'BodyPartExamined', ''))  # (0018, 0015)
-            contrast_agent_raw = str(getattr(dcm, 'ContrastBolusAgent', ''))  # (0018, 0010)
+            body_part = str(getattr(dcm, 'BodyPartExamined', ''))  # (0018,0015)
+            contrast_agent_raw = str(getattr(dcm, 'ContrastBolusAgent', ''))  # (0018,0010)
             contrast_agent = normalize_contrast_agent(contrast_agent_raw)
-            patient_position = str(getattr(dcm, 'PatientPosition', ''))  # (0018, 5100)
+            patient_position = str(getattr(dcm, 'PatientPosition', ''))  # (0018,5100)
             
             # date_dim entity
-            study_date = str(getattr(dcm, 'StudyDate', ''))  # (0008, 0020)
+            study_date = str(getattr(dcm, 'StudyDate', ''))  # (0008,0020)
             year = study_date[:4] if len(study_date) >= 4 else ""
             month = study_date[4:6] if len(study_date) >= 6 else ""
             
             # image_dim entity (0028, xxxx)
-            rows = int(getattr(dcm, 'Rows', 0))  # (0028, 0010)
-            columns = int(getattr(dcm, 'Columns', 0))  # (0028, 0011)
-            
-            # PixelSpacing (0028, 0030) - returns [row_spacing, col_spacing]
+            rows = int(getattr(dcm, 'Rows', 0))  # (0028,0010)
+            columns = int(getattr(dcm, 'Columns', 0))  # (0028,0011)
+
+            # PixelSpacing (0028,0030) - returns [row_spacing, col_spacing]
             pixel_spacing_raw = getattr(dcm, 'PixelSpacing', None)
             if pixel_spacing_raw and len(pixel_spacing_raw) >= 2:
                 pixel_spacing_x = float(pixel_spacing_raw[1])  # column spacing
@@ -182,14 +177,14 @@ def main():
             # Normalize pixel spacing
             pixel_spacing_x = normalize_pixel_spacing(pixel_spacing_x)
             pixel_spacing_y = normalize_pixel_spacing(pixel_spacing_y)
-            
-            slice_thickness = float(getattr(dcm, 'SliceThickness', 0.0))  # (0018, 0050)
-            photometric_interp = str(getattr(dcm, 'PhotometricInterpretation', ''))  # (0028, 0004)
-            
+
+            slice_thickness = float(getattr(dcm, 'SliceThickness', 0.0))  # (0018,0050)
+            photometric_interp = str(getattr(dcm, 'PhotometricInterpretation', ''))  # (0028,0004)
+
             # fact_table entity attributes
-            exposure_time = float(getattr(dcm, 'ExposureTime', 0.0))  # (0018, 1150)
-            # Note: file_path would be (0018, 1151) but we use local file path
-            
+            exposure_time = float(getattr(dcm, 'ExposureTime', 0.0))  # (0018,1150)
+            tube_current = float(getattr(dcm, 'XRayTubeCurrent', 0.0))  # (0018,1151)
+
             # ========================================
             # TRANSFORM: Convert DICOM to JPEG
             # ========================================
@@ -202,23 +197,23 @@ def main():
             
             # Insert/get patient_dim
             patient_values = {
-                "sex": patient_sex,  # (0010, 0040)
-                "age": patient_age   # (0010, 1010)
+                "sex": patient_sex,  # (0010,0040)
+                "age": patient_age   # (0010,1010)
             }
             patient_id_pk = get_or_create(db["patient_dim"], patient_values, "patient_id")
             
             # Insert/get station_dim
             station_values = {
-                "manufacturer": manufacturer,  # (0008, 0070)
-                "model": model                 # (0008, 1090)
+                "manufacturer": manufacturer,  # (0008,0070)
+                "model": model                 # (0008,1090)
             }
             station_id_pk = get_or_create(db["station_dim"], station_values, "station_id")
             
             # Insert/get protocol_dim
             protocol_values = {
-                "body_part": body_part,              # (0018, 0015)
-                "contrast_agent": contrast_agent,    # (0018, 0010)
-                "patient_position": patient_position # (0018, 5100)
+                "body_part": body_part,              # (0018,0015)
+                "contrast_agent": contrast_agent,    # (0018,0010)
+                "patient_position": patient_position # (0018,5100)
             }
             protocol_id_pk = get_or_create(db["protocol_dim"], protocol_values, "protocol_id")
             
@@ -231,12 +226,12 @@ def main():
             
             # Insert/get image_dim
             image_values = {
-                "rows": rows,                             # (0028, 0010)
-                "columns": columns,                       # (0028, 0011)
-                "pixel_spacing_x": pixel_spacing_x,       # (0028, 0030)
-                "pixel_spacing_y": pixel_spacing_y,       # (0028, 0030)
-                "slice_thickness": slice_thickness,       # (0018, 0050)
-                "photometric_interp": photometric_interp  # (0028, 0004)
+                "rows": rows,                             # (0028,0010)
+                "columns": columns,                       # (0028,0011)
+                "pixel_spacing_x": pixel_spacing_x,       # (0028,0030)
+                "pixel_spacing_y": pixel_spacing_y,       # (0028,0030)
+                "slice_thickness": slice_thickness,       # (0018,0050)
+                "photometric_interp": photometric_interp  # (0028,0004)
             }
             image_id_pk = get_or_create(db["image_dim"], image_values, "image_id")
             
@@ -248,6 +243,7 @@ def main():
                 "protocol_id": protocol_id_pk,   # FK to protocol_dim
                 "study_date": date_id_pk,        # FK to date_dim
                 "exposure_time": exposure_time,  # (0018, 1150)
+                "tube_current": tube_current,    # (0018, 1151)
                 "file_path": file_path,          # Original DICOM path
                 "jpeg_path": jpeg_path,          # Converted JPEG path
                 "jpeg_filename": jpeg_filename,
@@ -273,8 +269,8 @@ def main():
     print("\n" + "="*80)
     print("ETL PIPELINE COMPLETED")
     print("="*80)
-    print(f"✓ Total files processed: {processed_count}")
-    print(f"✗ Errors: {error_count}")
+    print(f"Total files processed: {processed_count}")
+    print(f"Errors: {error_count}")
     print(f"\nMongoDB Database: medical_imaging_dw")
     print(f"  - patient_dim: {db['patient_dim'].count_documents({})} records")
     print(f"  - station_dim: {db['station_dim'].count_documents({})} records")
@@ -283,14 +279,6 @@ def main():
     print(f"  - image_dim: {db['image_dim'].count_documents({})} records")
     print(f"  - fact_table: {db['fact_table'].count_documents({})} records")
     print(f"\nJPEG images saved to: {jpeg_output_dir}")
-    print(f"Grid visualization: {output_image}")
-    print("\n" + "="*80)
-    print("Next steps:")
-    print("  1. Open MongoDB Compass")
-    print("  2. Connect to: mongodb://localhost:27017")
-    print("  3. Explore database: medical_imaging_dw")
-    print("  4. Collections: patient_dim, station_dim, protocol_dim, date_dim, image_dim, fact_table")
-    print("="*80)
 
 
 if __name__ == "__main__":
