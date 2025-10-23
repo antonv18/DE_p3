@@ -77,33 +77,57 @@
 - ✅ Generación de surrogate keys (MD5 hash)
 
 **LOAD (Carga):**
-- ✅ Modelo dimensional implementado:
-  - **DimPatient** (PatientSK, PatientID, PatientAge, PatientSex)
-  - **DimStudy** (StudySK, StudyDate, StudyTime, StudyDescription, Modality)
-  - **DimImage** (ImageSK, SliceThickness, PixelSpacing, ContrastAgent, KVP, Manufacturer, StationName)
-  - **FactScan** (PatientSK, StudySK, ImageSK, OriginalDicomPath, JpegPath, JpegFilename, ProcessedDate)
+- ✅ Modelo relacional implementado (6 entidades):
+  - **PATIENT** (patient_id PK, sex, age)
+  - **STATION** (station_id PK, manufacturer, model)
+  - **PROTOCOL** (protocol_id PK, body_part, contrast_agent, patient_position)
+  - **DATE** (date_id PK, year, month)
+  - **IMAGE** (image_id PK, rows, columns, pixel_spacing_x, pixel_spacing_y, slice_thickness, photometric_interp)
+  - **STUDY** (fact table con FKs: patient_id, station_id, protocol_id, image_id, study_date, exposure_time, file_path)
 
-## 📊 Modelo Dimensional (Star Schema)
+## 📊 Modelo Relacional
 
 ```
-         DimPatient              DimStudy              DimImage
-       ┌──────────────┐       ┌──────────────┐       ┌──────────────┐
-       │ PatientSK PK │       │ StudySK PK   │       │ ImageSK PK   │
-       │ PatientID    │       │ StudyDate    │       │ SliceThickness│
-       │ PatientAge   │       │ StudyTime    │       │ PixelSpacing │
-       │ PatientSex   │       │ StudyDesc    │       │ ContrastAgent│
-       └──────────────┘       │ Modality     │       │ KVP          │
-              ▲                └──────────────┘       │ Manufacturer │
-              │                       ▲                │ StationName  │
-              │                       │                └──────────────┘
-              │                       │                       ▲
-              │                       │                       │
-       ┌──────┴───────────────────────┴───────────────────────┴──────┐
-       │                        FactScan                              │
-       │  PatientSK FK  StudySK FK  ImageSK FK                       │
-       │  OriginalDicomPath  JpegPath  JpegFilename ProcessedDate   │
-       └──────────────────────────────────────────────────────────────┘
+┌──────────┐     ┌──────────┐     ┌──────────┐
+│ PATIENT  │     │ STATION  │     │ PROTOCOL │
+│────────  │     │──────────│     │──────────│
+│patient_id│◄───┐│station_id│◄───┐│protocol_ │
+│sex       │    ││manufact. │    ││id        │
+│age       │    ││model     │    ││body_part │
+└──────────┘    │└──────────┘    ││contrast_ │
+                │                ││agent     │
+┌──────────┐    │                ││patient_  │
+│   DATE   │    │                ││position  │
+│──────────│    │                │└──────────┘
+│date_id   │◄───┤                │
+│year      │    │                │
+│month     │    │  ┌──────────┐  │
+└──────────┘    │  │  STUDY   │  │
+                └──┤(Fact Tbl)│──┘
+┌──────────┐       │──────────│
+│  IMAGE   │       │patient_id│
+│──────────│◄──────│station_id│
+│image_id  │       │protocol_ │
+│rows      │       │id        │
+│columns   │       │image_id  │
+│pixel_sp_x│       │study_date│
+│pixel_sp_y│       │exposure_t│
+│slice_thk │       │file_path │
+│photo_int │       └──────────┘
+└──────────┘
 ```
+
+## 🆕 Nuevos Campos Extraídos en el Modelo Actual
+
+Además de los campos base, ahora se extraen:
+- ✅ **ManufacturerModelName** (0008, 1090) → STATION.model
+- ✅ **BodyPartExamined** (0018, 0015) → PROTOCOL.body_part
+- ✅ **PatientPosition** (0018, 5100) → PROTOCOL.patient_position
+- ✅ **Rows** (0028, 0010) → IMAGE.rows
+- ✅ **Columns** (0028, 0011) → IMAGE.columns
+- ✅ **PhotometricInterpretation** (0028, 0004) → IMAGE.photometric_interp
+- ✅ **ExposureTime** (0018, 1150) → STUDY.exposure_time
+- ✅ **PixelSpacing** ahora se divide en pixel_spacing_x y pixel_spacing_y
 
 ## 🧪 Testing
 
@@ -145,19 +169,22 @@ data/
 ## 📈 Estadísticas del Pipeline
 
 Después de ejecutar, se obtiene:
-- **DimPatient**: ~100 registros únicos (pacientes)
-- **DimStudy**: ~100 registros (estudios)
-- **DimImage**: ~50-80 registros (configuraciones únicas de imagen)
-- **FactScan**: 100 registros (uno por cada archivo DICOM)
+- **PATIENT**: ~50-100 registros únicos (combinaciones de sexo + edad)
+- **STATION**: ~1-5 registros (diferentes equipos/modelos)
+- **PROTOCOL**: ~5-20 registros (protocolos únicos de adquisición)
+- **DATE**: ~5-15 registros (combinaciones año-mes)
+- **IMAGE**: ~10-30 registros (configuraciones únicas de imagen)
+- **STUDY**: 100 registros (uno por cada archivo DICOM)
 - **JPEG images**: 100 archivos (256x256 píxeles cada uno)
 
 ## 🔍 Acceso a los Datos (Punto 4)
 
-### MongoDB Compass (GUI)
+### MongoDB Compass (GUI) ⭐ Recomendado
 1. Abrir MongoDB Compass
 2. Conectar: `mongodb://localhost:27017`
 3. Database: `medical_imaging_dw`
-4. Explorar colecciones
+4. Explorar colecciones: **PATIENT**, **STATION**, **PROTOCOL**, **DATE**, **IMAGE**, **STUDY**
+5. Ver ejemplos de queries en: `consultas_mongodb_nuevo_modelo.md`
 
 ### MongoDB Shell (CLI)
 ```bash
@@ -166,27 +193,45 @@ mongosh
 use medical_imaging_dw
 
 # Ejemplos de consultas:
-db.DimPatient.find({ PatientSex: "M", PatientAge: { $gte: 60 } })
-db.FactScan.countDocuments()
-db.DimImage.find({ ContrastAgent: "No contrast agent" })
+db.PATIENT.find({ sex: "M", age: { $gte: 60 } })
+db.STUDY.countDocuments()
+db.PROTOCOL.find({ contrast_agent: { $ne: "No contrast agent" } })
+
+# JOIN: Estudios con pacientes
+db.STUDY.aggregate([
+  { $lookup: { from: "PATIENT", localField: "patient_id", foreignField: "patient_id", as: "patient" } },
+  { $unwind: "$patient" },
+  { $limit: 5 }
+])
 ```
 
 ## ✨ Características Destacadas
 
 1. **Idempotencia**: Ejecutar el pipeline múltiples veces produce el mismo resultado
-2. **Integridad Referencial**: Uso de surrogate keys mantiene consistencia
-3. **Normalización**: Datos estandarizados y limpios
-4. **Trazabilidad**: Paths originales y procesados guardados en FactScan
-5. **Escalabilidad**: Diseño permite agregar más dimensiones fácilmente
+2. **Integridad Referencial**: Uso de surrogate keys mantiene consistencia entre entidades
+3. **Normalización**: Datos estandarizados y limpios según estándares DICOM
+4. **Trazabilidad**: Paths originales y procesados guardados en STUDY
+5. **Escalabilidad**: Diseño modular permite agregar más entidades fácilmente
 6. **Manejo de Errores**: Continúa procesando si un archivo falla
+7. **Modelo Relacional**: Conformidad con etiquetas DICOM estándar
+8. **Granularidad**: PixelSpacing separado en componentes X e Y
 
 ## 📝 Notas Importantes
 
 - El pipeline limpia las colecciones existentes en cada ejecución (fresh start)
-- Los surrogate keys garantizan no duplicación de registros
+- Los surrogate keys (MD5 hash) garantizan no duplicación de registros
 - Las imágenes JPEG se almacenan en `data/output/jpeg_images/`
 - El grid de visualización se guarda como `dicom_grid_output.png`
 - MongoDB debe estar ejecutándose antes de iniciar el pipeline
+- El modelo sigue el esquema relacional: PATIENT, STATION, PROTOCOL, DATE, IMAGE, STUDY
+- Todas las etiquetas DICOM están documentadas en comentarios del código
+
+## 📚 Documentación Adicional
+
+- **`README.md`** → Guía general del proyecto
+- **`consultas_mongodb_nuevo_modelo.md`** → Ejemplos de consultas MongoDB
+- **`MODELO_RELACIONAL_RESUMEN.md`** → Documentación técnica completa del modelo
+- **`RESUMEN_CAMBIOS.md`** → Cambios respecto a versiones anteriores
 
 ## 🎯 Próximos Pasos (Punto 4+)
 
