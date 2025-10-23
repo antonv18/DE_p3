@@ -1,9 +1,16 @@
 """Configuration settings for the project"""
 from pathlib import Path
+from dotenv import load_dotenv
+import os
 
+load_dotenv()  
+
+# Database settings
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = int(os.getenv("DB_PORT", 27017))
 
 # Data directories
-DATA_DIR = Path("data")
+DATA_DIR = Path(os.getenv("DATA_DIR", "data"))
 RAW_DATA_DIR = DATA_DIR / "dicom_dir"  # Archivos DICOM (100 CT scans)
 TIFF_DATA_DIR = DATA_DIR / "tiff_images"  # Imágenes TIFF (100 archivos)
 OVERVIEW_CSV = DATA_DIR / "overview.csv"  # CSV con metadata

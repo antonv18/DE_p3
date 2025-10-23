@@ -9,12 +9,11 @@ import matplotlib.pyplot as plt
 from glob import glob
 from pathlib import Path
 from pymongo import MongoClient
-import hashlib
-import numpy as np
-from PIL import Image
+
 
 # Importar configuración
 from de_p3.config import RAW_DATA_DIR as DATA_PATH
+from de_p3.config import DB_HOST, DB_PORT
 from de_p3.utils import (
     format_age,
     normalize_contrast_agent,
@@ -100,7 +99,7 @@ def main():
     # 3. MONGODB CONNECTION
     # ============================================
     print("\n[4/5] Connecting to MongoDB...")
-    client = MongoClient("mongodb://localhost:27017")
+    client = MongoClient("mongodb://"+ DB_HOST +":"+ str(DB_PORT) )
     
     # Send a ping to confirm a successful connection
     try:
