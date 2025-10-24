@@ -1,234 +1,236 @@
 # P3 - Data Engineering Project
 
-## Descripción
+## Description
 
-Proyecto de ingeniería de datos para procesamiento y análisis de imágenes médicas DICOM.
-Implementa un pipeline ETL completo con modelo dimensional en MongoDB.
+Data engineering project for processing and analyzing DICOM medical images.
+Implements a complete ETL pipeline with a dimensional model in MongoDB.
 
-## Estructura del Proyecto
+## Project Structure
 
 ```
 DE_p3/
-├── .env                  # Variables de entorno (configuración de datos y DB)
-├── .python-version       # Versión de Python (para uv)
-├── pyproject.toml        # Configuración del proyecto y dependencias
-├── README.md             # Este archivo
-├── uv.lock               # Lockfile de dependencias
-├── data/                 # Directorio de datos (debe crearse manualmente)
-│   └── dicom_dir/       # Aquí deben ir los archivos DICOM descargados
-└── src/                  # Código fuente
-    └── de_p3            # Paquete
-        ├── __init__.py      # Inicialización del paquete
-        ├── processing.py    # ⭐ Pipeline ETL completo
-        ├── config.py        # Configuración (rutas, parámetros)
-        └── utils.py         # Utilidades (hashing, normalización)
+├── .env                  # Environment variables (data and DB config)
+├── .python-version       # Python version (for uv)
+├── pyproject.toml        # Project configuration and dependencies
+├── README.md             # This file
+├── uv.lock               # Dependency lockfile
+├── data/                 # Data directory (must be created manually)
+│   └── dicom_dir/       # Downloaded DICOM files go here
+└── src/                  # Source code
+    └── de_p3            # Package
+        ├── __init__.py      # Package initialization
+        ├── processing.py    # ⭐ Complete ETL pipeline
+        ├── config.py        # Configuration (paths, parameters)
+        └── utils.py         # Utilities (hashing, normalization)
 ```
 
-## Configuración de Datos 
+## Data Setup (Important!)
 
-Este proyecto **no** incluye los datos de imágenes médicas. Debes descargarlos manualmente.
+This project **does not** include the medical image data. You must download it manually.
 
-1. **Descargar Datos**: Ve a Kaggle y descarga los archivos DICOM:
+1. **Download Data**: Go to Kaggle and download the DICOM files:
 
-   * **Enlace**: [SIIM-ACR Pneumothorax Segmentation Data](https://www.kaggle.com/datasets/kmader/siim-medical-images?select=dicom_dir)
+   * **Link**: [SIIM-ACR Pneumothorax Segmentation Data](https://www.kaggle.com/datasets/kmader/siim-medical-images?select=dicom_dir)
 
-   * Necesitarás descargar los archivos del directorio `dicom_dir`.
+   * You will need to download the files from the `dicom_dir` directory.
 
-2. **Crear Estructura de Carpetas**:
+2. **Create Folder Structure**:
 
-   * En la raíz de este proyecto, crea una carpeta llamada `data`.
+   * In the root of this project, create a folder named `data`.
 
-   * Dentro de `data`, crea otra carpeta llamada `dicom_dir`.
+   * Inside `data`, create another folder named `dicom_dir`.
 
-   * La ruta final debe ser: `data/dicom_dir/`.
+   * The final path should be: `data/dicom_dir/`.
 
-3. **Colocar Datos**: Mueve todos los archivos `.dcm` que descargaste de Kaggle dentro de la carpeta `data/dicom_dir/`.
+3. **Place Data**: Move all the `.dcm` files you downloaded from Kaggle into the `data/dicom_dir/` folder.
 
-El script está configurado para leer los datos de esta ubicación, según se define en el archivo `.env` (`DATA_DIR="data"`) y `src/de_p3/config.py`.
+The script is configured to read data from this location, as defined in the `.env` file (`DATA_DIR="data"`) and `src/de_p3/config.py`.
 
-## Requisitos
+## Requirements
 
 * Python >= 3.12
 
-* UV (gestor de paquetes)
+* UV (package manager)
 
-* **MongoDB Community Edition** (debe estar ejecutándose)
+* **MongoDB Community Edition** (must be running)
 
-* MongoDB Compass (opcional, para visualizar datos)
+* MongoDB Compass (optional, for viewing data)
 
-## Instalación
+## Installation
 
-### 1. Instalar MongoDB
+### 1. Install MongoDB
 
-Descargar e instalar desde: https://www.mongodb.com/try/download/community
+Download and install from: https://www.mongodb.com/try/download/community
 
-Iniciar MongoDB:
+Start MongoDB:
 
 ```
-# Windows (PowerShell como administrador)
+# Windows (PowerShell as administrator)
 net start MongoDB
 
-# O ejecutar manualmente:
+# Or run manually:
 mongod
 ```
 
-### 2. Opciones de Instalación del Paquete
+### 2. Package Installation Options
 
-Elige **una** de las siguientes opciones:
+Choose **one** of the following options:
 
-#### Opción 1: Instalación Local (Recomendada para ejecutar)
+#### Option 1: Local Installation (Recommended for running)
 
-Esta opción utiliza `uv` para crear un entorno virtual y sincronizar las dependencias exactas del proyecto.
+This option uses `uv` to create a virtual environment and sync the exact project dependencies.
 
 ```
-# 1. Clona el repositorio
+# 1. Clone the repository
 git clone [https://github.com/antonv18/DE_p3.git](https://github.com/antonv18/DE_p3.git)
 cd DE_p3
 
-# 2. Sincroniza el entorno y las dependencias
+# 2. Sync the environment and dependencies
 uv sync
 ```
 
-#### Opción 2: Instalación desde GitHub (Pip)
+#### Option 2: Install from GitHub (Pip)
 
-Esta opción instala el paquete directamente desde GitHub usando `pip`.
+This option installs the package directly from GitHub using `pip`.
 
 ```
-# Sintaxis correcta usando git+
+# Correct syntax using git+
 pip install git+[https://github.com/antonv18/DE_p3.git](https://github.com/antonv18/DE_p3.git)
 ```
 
-#### Opción 3: Instalación Local (Editable para desarrollo)
+#### Option 3: Local Installation (Editable for development)
 
-Esta opción clona el repositorio e instala el paquete en "modo editable", lo que significa que los cambios en el código fuente se reflejan inmediatamente.
+This option clones the repository and installs the package in "editable mode," which means changes to the source code are reflected immediately.
 
 ```
-# 1. Clona el repositorio
+# 1. Clone the repository
 git clone [https://github.com/antonv18/DE_p3.git](https://github.com/antonv18/DE_p3.git)
 cd DE_p3
 
-# 2. Instala el paquete en modo editable
-# (pip instalará las dependencias listadas en pyproject.toml)
+# 2. Install the package in editable mode
+# (pip will install the dependencies listed in pyproject.toml)
 pip install -e .
 ```
 
-## Uso
+## Usage
 
-Asegúrate de tener MongoDB ejecutándose y los datos en la carpeta `data/dicom_dir/`.
+Make sure you have MongoDB running and the data in the `data/dicom_dir/` folder.
 
-### Ejecutar el pipeline ETL completo:
+### Run the complete ETL pipeline:
 
-**Opción 1 (Recomendada si usaste `uv sync`):**
+**Option 1 (Recommended if you used `uv sync`):**
 
 ```
-# Ejecuta el script definido en pyproject.toml
+# Runs the script defined in pyproject.toml
 uv run run-pipeline-mongo
 ```
 
-**Opción 2 (Módulo directo):**
+**Option 2 (Direct module):**
 
 ```
-# Funciona con cualquier método de instalación
+# Works with any installation method
 uv run python -m de_p3.processing
 
-# O si no usas uv:
+# Or if not using uv:
 python -m de_p3.processing
 ```
 
-## Pipeline ETL
+## ETL Pipeline
 
-El pipeline implementa las siguientes fases:
+The pipeline implements the following phases:
 
-### 1. **Extracción (Extract)**
+### 1. **Extraction (Extract)**
 
-* Carga archivos DICOM desde `data/dicom_dir/`
+* Loads DICOM files from `data/dicom_dir/`
 
-* Extrae metadata: PatientID, PatientAge, PatientSex, StudyDate, Modality, PixelSpacing, ContrastAgent, etc.
+* Extracts metadata: PatientID, PatientAge, PatientSex, StudyDate, Modality, PixelSpacing, ContrastAgent, etc.
 
-### 2. **Transformación (Transform)**
+### 2. **Transformation (Transform)**
 
-* **Normalización de edad**: Convierte formato DICOM ('061Y') a entero (61)
+* **Age normalization**: Converts DICOM format ('061Y') to integer (61)
 
-* **Normalización de PixelSpacing**: Redondea a bins predefinidos (0.6, 0.65, 0.7, 0.75, 0.8), separado en X e Y
+* **PixelSpacing normalization**: Rounds to predefined bins \[0.6, 0.65, 0.7, 0.75, 0.8\], separated into X and Y
 
-* **Normalización de ContrastAgent**: Estandariza valores vacíos/inválidos
+* **ContrastAgent normalization**: Standardizes empty/invalid values
 
-* **Conversión de imágenes**: DICOM → JPEG (256x256, normalizado 0-255)
+* **Image conversion**: DICOM → JPEG (256x256, normalized 0-255)
 
-* **Generación de surrogate keys**: Hashes MD5 para identificadores únicos
+* **Surrogate key generation**: MD5 hashes for unique identifiers
 
-* **Extracción de campos adicionales**: BodyPartExamined, PatientPosition, ExposureTime, Rows, Columns, PhotometricInterpretation, ManufacturerModelName
+* **Extraction of additional fields**: BodyPartExamined, PatientPosition, ExposureTime, Rows, Columns, PhotometricInterpretation, ManufacturerModelName
 
-### 3. **Carga (Load)**
+### 3. **Load**
 
-* Modelo relacional en MongoDB (database: `medical_imaging_dw`)
+* Relational model in MongoDB (database: `medical_imaging_dw`)
 
-  * **patient_dim**: Datos demográficos de pacientes
+  * **patient_dim**: Patient demographic data
 
-  * **station_dim**: Información de equipos/estaciones
+  * **station_dim**: Equipment/station information
 
-  * **protocol_dim**: Protocolos de adquisición
+  * **protocol_dim**: Acquisition protocols
 
-  * **date_dim**: Dimensión temporal
+  * **date_dim**: Date dimension
 
-  * **image_dim**: Características técnicas de imagen
+  * **image_dim**: Image technical characteristics
 
-  * **fact_table**: Tabla de hechos (relaciona todas las dimensiones)
+  * **fact_table**: Fact table (links all dimensions)
 
-### 4. **Visualización**
+### 4. **Visualization**
 
-* Grid 4x4 con las primeras 16 imágenes DICOM
+* 4x4 grid with the first 16 DICOM images
 
-* Se guarda como `dicom_grid_output.png`
+* Saves as `dicom_grid_output.png`
 
-## Funciones Implementadas
+## Implemented Functions
 
 ### `surrogate_key(values)`
 
-Genera una clave sustituta única (hash MD5) a partir de un diccionario de valores.
+Generates a unique surrogate key (MD5 hash) from a dictionary of values.
 
 ### `get_or_create(collection, values, pk_name)`
 
-Busca un registro en MongoDB. Si no existe, lo inserta usando surrogate key.
+Searches for a record in MongoDB. If it doesn't exist, it inserts it using a surrogate key.
+
+Failure to do so will result in a compilation error.
 
 ### `format_age(age_str)`
 
-Convierte edad DICOM ('061Y') a entero (61).
+Converts DICOM age ('061Y') to integer (61).
 
 ### `normalize_pixel_spacing(raw_value)`
 
-Redondea pixel spacing al bin más cercano \[0.6, 0.65, 0.7, 0.75, 0.8\].
+Rounds pixel spacing to the nearest bin \[0.6, 0.65, 0.7, 0.75, 0.8\].
 
 ### `normalize_contrast_agent(val)`
 
-Estandariza metadata de agente de contraste.
+Standardizes contrast agent metadata.
 
 ### `dicom_to_jpeg(input_path, output_dir, size)`
 
-Convierte archivo DICOM a JPEG (normalizado y redimensionado).
+Converts DICOM file to JPEG (normalized and resized).
 
-## Dependencias Principales
+## Main Dependencies
 
-* **pandas**: Manipulación de datos y DataFrames
+* **pandas**: Data manipulation and DataFrames
 
-* **numpy**: Operaciones numéricas
+* **numpy**: Numeric operations
 
-* **pydicom**: Lectura de archivos DICOM
+* **pydicom**: DICOM file reading
 
-* **matplotlib**: Visualización de imágenes
+* **matplotlib**: Image visualization
 
-* **scikit-image**: Procesamiento de imágenes
+* **scikit-image**: Image processing
 
-* **seaborn**: Visualización estadística
+* **seaborn**: Statistical visualization
 
-* **pymongo**: Cliente de Python para MongoDB
+* **pymongo**: Python client for MongoDB
 
-## Configuración
+## Configuration
 
-Edita `.env` para ajustar:
+Edit `.env` to adjust:
 
 ```
 DATA_DIR="data"
 DB_HOST="localhost"
-DB_PORT=27017
+DB_PORT=207
 ```
