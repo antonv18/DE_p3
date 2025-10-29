@@ -19,7 +19,7 @@ DE_p3/
 └── src/                  # Source code
     └── de_p3            # Package
         ├── __init__.py      # Package initialization
-        ├── processing.py    # ⭐ Complete ETL pipeline
+        ├── processing.py    # Complete ETL pipeline
         ├── config.py        # Configuration (paths, parameters)
         └── utils.py         # Utilities (hashing, normalization)
 ```
@@ -82,7 +82,7 @@ This option uses `uv` to create a virtual environment and sync the exact project
 
 ```
 # 1. Clone the repository
-git clone [https://github.com/antonv18/DE_p3.git](https://github.com/antonv18/DE_p3.git)
+git clone https://github.com/antonv18/DE_p3.git
 cd DE_p3
 
 # 2. Sync the environment and dependencies
@@ -95,7 +95,7 @@ This option installs the package directly from GitHub using `pip`.
 
 ```
 # Correct syntax using git+
-pip install git+[https://github.com/antonv18/DE_p3.git](https://github.com/antonv18/DE_p3.git)
+pip install git+https://github.com/antonv18/DE_p3.git
 ```
 
 #### Option 3: Local Installation (Editable for development)
@@ -104,7 +104,7 @@ This option clones the repository and installs the package in "editable mode," w
 
 ```
 # 1. Clone the repository
-git clone [https://github.com/antonv18/DE_p3.git](https://github.com/antonv18/DE_p3.git)
+git clone https://github.com/antonv18/DE_p3.git
 cd DE_p3
 
 # 2. Install the package in editable mode
